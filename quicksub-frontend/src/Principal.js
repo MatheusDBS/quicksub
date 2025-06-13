@@ -1,13 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import eyeIcon from './assets/eye.png'; // ajuste o caminho conforme o local onde você salvou
-import eyeOffIcon from './assets/eye-off.png'; // ajuste o caminho conforme o local onde você salvou
+import eyeIcon from './assets/eye.png';
+import eyeOffIcon from './assets/eye-off.png';
 
 function Principal({ onLogout }) {
   const [assinaturas, setAssinaturas] = useState([]);
-  const [clientes, setClientes] = useState([]);
   const [servicos, setServicos] = useState([]);
-  const [clienteId, setClienteId] = useState('');
-  const [servicoId, setServicoId] = useState('');
+  const [siteSelecionado, setSiteSelecionado] = useState('');
+  const [planoId, setPlanoId] = useState('');
   const [dataInicio, setDataInicio] = useState('');
   const [dataFim, setDataFim] = useState('');
   const [erro, setErro] = useState('');
@@ -26,9 +25,9 @@ function Principal({ onLogout }) {
   const [confirmarLogout, setConfirmarLogout] = useState(false);
   const [confirmarExclusaoConta, setConfirmarExclusaoConta] = useState(false);
   const [editandoAssinaturaId, setEditandoAssinaturaId] = useState(null);
-  const [editAssinatura, setEditAssinatura] = useState({ clienteId: '', servicoId: '', dataInicio: '', dataFim: '' });
+  const [editAssinatura, setEditAssinatura] = useState({ servicoId: '', dataInicio: '', dataFim: '' });
 
-  // Busca assinaturas, clientes e serviços existentes
+  // Busca assinaturas e serviços existentes
   useEffect(() => {
     const fetchAssinaturas = async () => {
       try {
@@ -46,18 +45,6 @@ function Principal({ onLogout }) {
         setErro('Erro de conexão');
       }
     };
-    const fetchClientes = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        const res = await fetch('http://localhost:5000/api/clientes', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setClientes(data);
-        }
-      } catch {}
-    };
     const fetchServicos = async () => {
       try {
         const token = localStorage.getItem('token');
@@ -73,26 +60,13 @@ function Principal({ onLogout }) {
       } catch {}
     };
     fetchAssinaturas();
-    fetchClientes();
     fetchServicos();
   }, [sucesso]);
 
-  // Mostra apenas os planos (serviços) do cliente selecionado
-  const planosFiltrados = servicos.filter(s => {
-    if (!clienteId) return false;
-    // Mostra apenas os planos do serviço escolhido (ex: se cliente é da Netflix, mostra só Netflix)
-    // Supondo que o nome do cliente seja igual ao nome do serviço/plano
-    const cliente = clientes.find(c => c.id === parseInt(clienteId));
-    if (!cliente) return false;
-    // Ajuste conforme sua lógica de relação cliente/serviço
-    return s.nome && cliente.nome && s.nome.toLowerCase() === cliente.nome.toLowerCase();
-  });
-
-  // Mostra apenas os serviços que possuem pelo menos um plano disponível
-  const servicosComPlanos = servicos.filter(servico =>
-    // Um serviço só aparece se houver pelo menos um plano relacionado a ele
-    planosFiltrados.some(plano => plano.id === servico.id)
-  );
+  // Lista de sites únicos
+  const sitesUnicos = Array.from(new Set(servicos.map(s => s.nome)));
+  // Planos filtrados pelo site selecionado
+  const planosFiltrados = servicos.filter(s => s.nome === siteSelecionado);
 
   // Cadastro de assinatura
   const handleSubmit = async (e) => {
@@ -110,27 +84,46 @@ function Principal({ onLogout }) {
       } catch {
         user_id = 1; // fallback para teste
       }
+      // Buscar cliente_id ou cliente_nome a partir do serviço selecionado
+      const servicoSelecionado = servicos.find(s => s.id == planoId);
+      console.log('servicoSelecionado:', servicoSelecionado); // <-- log para debug
+      let cliente_id = servicoSelecionado ? (servicoSelecionado.cliente_id || servicoSelecionado.id_cliente) : null;
+      let cliente_nome = servicoSelecionado ? (servicoSelecionado.cliente_nome || servicoSelecionado.cliente || servicoSelecionado.nome_cliente) : null;
+      // Solução temporária para teste: se não houver cliente, usa 1
+      if (!cliente_id && !cliente_nome) {
+        cliente_id = 1;
+      }
+      // Log dos dados enviados
+      console.log('Enviando assinatura:', { cliente_id, cliente_nome, servico_id: planoId, data_inicio: dataInicio, data_fim: dataFim, user_id });
+      if (!planoId || !dataInicio || !dataFim || !user_id) {
+        setErro('Preencha todos os campos corretamente.');
+        setLoading(false);
+        return;
+      }
+      const body = {
+        servico_id: planoId,
+        data_inicio: dataInicio,
+        data_fim: dataFim,
+        user_id
+      };
+      if (cliente_id) body.cliente_id = cliente_id;
+      else if (cliente_nome) body.cliente_nome = cliente_nome;
       const res = await fetch('http://localhost:5000/api/assinaturas', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          cliente_id: clienteId,
-          servico_id: servicoId,
-          data_inicio: dataInicio,
-          data_fim: dataFim,
-          user_id
-        })
+        body: JSON.stringify(body)
       });
       if (res.ok) {
         setSucesso('Assinatura registrada!');
-        setClienteId(''); setServicoId(''); setDataInicio(''); setDataFim('');
+        setSiteSelecionado(''); setPlanoId(''); setDataInicio(''); setDataFim('');
       } else {
-        setErro('Erro ao registrar assinatura');
+        const erroApi = await res.json().catch(() => ({}));
+        setErro(erroApi.message || 'Erro ao registrar assinatura');
       }
-    } catch {
+    } catch (err) {
       setErro('Erro de conexão');
     } finally {
       setLoading(false);
@@ -230,7 +223,6 @@ function Principal({ onLogout }) {
   const handleEditarAssinatura = (a) => {
     setEditandoAssinaturaId(a.id);
     setEditAssinatura({
-      clienteId: a.cliente_id,
       servicoId: a.servico_id,
       dataInicio: a.data_inicio ? a.data_inicio.slice(0, 10) : '',
       dataFim: a.data_fim ? a.data_fim.slice(0, 10) : ''
@@ -251,7 +243,6 @@ function Principal({ onLogout }) {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          cliente_id: editAssinatura.clienteId,
           servico_id: editAssinatura.servicoId,
           data_inicio: editAssinatura.dataInicio,
           data_fim: editAssinatura.dataFim
@@ -260,7 +251,7 @@ function Principal({ onLogout }) {
       if (res.ok) {
         setSucesso('Assinatura atualizada!');
         setEditandoAssinaturaId(null);
-        setEditAssinatura({ clienteId: '', servicoId: '', dataInicio: '', dataFim: '' });
+        setEditAssinatura({ servicoId: '', dataInicio: '', dataFim: '' });
         // Atualiza lista
         const novasAssinaturas = assinaturas.map(a => a.id === editandoAssinaturaId ? { ...a, ...{
           servico_id: editAssinatura.servicoId,
@@ -388,16 +379,16 @@ function Principal({ onLogout }) {
         )}
       </div>
       <form onSubmit={handleSubmit} style={{ marginBottom: 32, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <select value={clienteId} onChange={e => setClienteId(e.target.value)} required style={{ width: 280, marginBottom: 8, padding: 8 }}>
-          <option value="">Selecione o cliente</option>
-          {clientes.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+        <select value={siteSelecionado} onChange={e => { setSiteSelecionado(e.target.value); setPlanoId(''); }} required style={{ width: 280, marginBottom: 8, padding: 8 }}>
+          <option value="">Selecione o site</option>
+          {sitesUnicos.map(site => (
+            <option key={site} value={site}>{site}</option>
+          ))}
         </select>
-        <select value={servicoId} onChange={e => setServicoId(e.target.value)} required style={{ width: 280, marginBottom: 8, padding: 8 }} disabled={!clienteId}>
+        <select value={planoId} onChange={e => setPlanoId(e.target.value)} required style={{ width: 280, marginBottom: 8, padding: 8 }} disabled={!siteSelecionado}>
           <option value="">Selecione o plano</option>
           {planosFiltrados.map(s => (
-            <option key={s.id} value={s.id}>
-              {s.descricao ? `${s.descricao} - R$ ${s.preco}` : `${s.plano || ''} - R$ ${s.preco}`}
-            </option>
+            <option key={s.id} value={s.id}>{s.descricao} - R$ {s.preco}</option>
           ))}
         </select>
         <input type="date" value={dataInicio} onChange={e => setDataInicio(e.target.value)} required style={{ width: 280, marginBottom: 8, padding: 8 }} placeholder="Data de início" />
@@ -409,77 +400,60 @@ function Principal({ onLogout }) {
       <ul style={{ listStyle: 'none', padding: 0 }}>
         {assinaturas.map((a, i) => {
           const servico = servicos.find(s => s.id === a.servico_id);
-          const cliente = clientes.find(c => c.id === a.cliente_id);
           const formatarData = (data) => {
             if (!data) return '';
             const d = new Date(data);
             if (isNaN(d)) return data;
             return d.toLocaleDateString('pt-BR');
           };
-          if (editandoAssinaturaId === a.id) {
-            // Edição inline
-            const planosDoCliente = servicos.filter(s => cliente && s.nome === cliente.nome);
-            return (
-              <li key={a.id || i} style={{ background: 'var(--primary)', margin: '12px 0', padding: 16, borderRadius: 6, position: 'relative' }}>
-                <div style={{ marginBottom: 8 }}><b>Cliente:</b> {cliente ? cliente.nome : a.cliente_id}</div>
-                <div style={{ marginBottom: 8 }}>
-                  <b>Plano:</b>
-                  <select
-                    value={editAssinatura.servicoId}
-                    onChange={e => setEditAssinatura({ ...editAssinatura, servicoId: e.target.value })}
-                    style={{ marginLeft: 8, padding: 4 }}
-                  >
-                    <option value="">Selecione o plano</option>
-                    {planosDoCliente.map(s => (
-                      <option key={s.id} value={s.id}>{s.descricao ? `${s.descricao} - R$ ${s.preco}` : `${s.plano || ''} - R$ ${s.preco}`}</option>
-                    ))}
-                  </select>
-                </div>
-                <div style={{ marginBottom: 8 }}>
-                  <b>Início:</b>
-                  <input
-                    type="date"
-                    value={editAssinatura.dataInicio}
-                    onChange={e => setEditAssinatura({ ...editAssinatura, dataInicio: e.target.value })}
-                    style={{ marginLeft: 8, padding: 4 }}
-                  />
-                </div>
-                <div style={{ marginBottom: 8 }}>
-                  <b>Fim:</b>
-                  <input
-                    type="date"
-                    value={editAssinatura.dataFim}
-                    onChange={e => setEditAssinatura({ ...editAssinatura, dataFim: e.target.value })}
-                    style={{ marginLeft: 8, padding: 4 }}
-                  />
-                </div>
-                <button style={{ background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 4, padding: '6px 16px', marginRight: 8, cursor: 'pointer' }} onClick={handleSalvarEdicaoAssinatura} disabled={loading}>{loading ? 'Salvando...' : 'Salvar'}</button>
-                <button style={{ background: '#eee', color: '#222', border: 'none', borderRadius: 4, padding: '6px 16px', cursor: 'pointer' }} onClick={() => setEditandoAssinaturaId(null)}>Cancelar</button>
-              </li>
-            );
-          }
+          const isEditando = editandoAssinaturaId === a.id;
           return (
             <li key={a.id || i} style={{ background: 'var(--primary)', margin: '12px 0', padding: 16, borderRadius: 6, position: 'relative' }}>
-              <div style={{ flex: 1, textAlign: 'left' }}>
-                <strong>Cliente:</strong> {cliente ? cliente.nome : a.cliente_id} <br />
-                <strong>Plano:</strong> {servico ? servico.descricao : ''} <br />
-                <strong>Preço:</strong> R$ {servico ? servico.preco : ''} <br />
-                <strong>Início:</strong> {formatarData(a.data_inicio)} <br />
-                <strong>Fim:</strong> {formatarData(a.data_fim)} <br />
-                <strong>Status:</strong> {calcularStatus(a.data_inicio, a.data_fim)}
-              </div>
-              <button
-                style={{ position: 'absolute', top: 16, right: 16, background: '#ff4d4f', color: '#fff', border: 'none', borderRadius: 4, padding: '6px 12px', cursor: 'pointer' }}
-                onClick={() => setConfirmarExclusao(a.id)}
-              >
-                Excluir
-              </button>
-              <button
-                style={{ position: 'absolute', top: 16, right: 90, background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 4, padding: '6px 12px', cursor: 'pointer' }}
-                onClick={() => handleEditarAssinatura(a)}
-              >
-                Editar
-              </button>
+              {isEditando ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <select value={editAssinatura.servicoId} onChange={e => setEditAssinatura({ ...editAssinatura, servicoId: e.target.value })} style={{ padding: 8 }}>
+                    <option value="">Selecione o plano</option>
+                    {servicos.map(s => (
+                      <option key={s.id} value={s.id}>{s.nome} - {s.descricao} - R$ {s.preco}</option>
+                    ))}
+                  </select>
+                  <input type="date" value={editAssinatura.dataInicio} onChange={e => setEditAssinatura({ ...editAssinatura, dataInicio: e.target.value })} style={{ padding: 8 }} />
+                  <input type="date" value={editAssinatura.dataFim} onChange={e => setEditAssinatura({ ...editAssinatura, dataFim: e.target.value })} style={{ padding: 8 }} />
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button style={{ background: '#52c41a', color: '#fff', border: 'none', borderRadius: 4, padding: '6px 12px', cursor: 'pointer' }} onClick={handleSalvarEdicaoAssinatura} disabled={loading}>
+                      {loading ? 'Salvando...' : 'Salvar'}
+                    </button>
+                    <button style={{ background: '#eee', color: '#222', border: 'none', borderRadius: 4, padding: '6px 12px', cursor: 'pointer' }} onClick={() => setEditandoAssinaturaId(null)}>
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ flex: 1, textAlign: 'left' }}>
+                  <strong>Serviço:</strong> {servico ? servico.nome : a.servico_id} <br />
+                  <strong>Plano:</strong> {servico ? servico.descricao : ''} <br />
+                  <strong>Preço:</strong> R$ {servico ? servico.preco : ''} <br />
+                  <strong>Início:</strong> {formatarData(a.data_inicio)} <br />
+                  <strong>Fim:</strong> {formatarData(a.data_fim)} <br />
+                  <strong>Status:</strong> {calcularStatus(a.data_inicio, a.data_fim)}
+                </div>
+              )}
+              {!isEditando && (
+                <>
+                  <button
+                    style={{ position: 'absolute', top: 16, right: 16, background: '#ff4d4f', color: '#fff', border: 'none', borderRadius: 4, padding: '6px 12px', cursor: 'pointer' }}
+                    onClick={() => setConfirmarExclusao(a.id)}
+                  >
+                    Excluir
+                  </button>
+                  <button
+                    style={{ position: 'absolute', top: 16, right: 90, background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 4, padding: '6px 12px', cursor: 'pointer' }}
+                    onClick={() => handleEditarAssinatura(a)}
+                  >
+                    Editar
+                  </button>
+                </>
+              )}
               {confirmarExclusao === a.id && (
                 <div style={{
                   position: 'fixed',

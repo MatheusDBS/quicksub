@@ -7,16 +7,10 @@ CREATE TABLE IF NOT EXISTS users (
   password VARCHAR(255) NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS clientes (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  nome VARCHAR(100) NOT NULL,
-  email VARCHAR(100)
-);
-
 CREATE TABLE IF NOT EXISTS servicos (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  nome VARCHAR(100) NOT NULL,
-  descricao VARCHAR(255) NOT NULL,
+  nome VARCHAR(100) NOT NULL UNIQUE, -- nome do serviço/plano, agora único
+  descricao VARCHAR(255) NOT NULL,   -- pode ser usado para detalhes do plano
   preco DECIMAL(10,2) NOT NULL
 );
 
@@ -33,49 +27,6 @@ CREATE TABLE IF NOT EXISTS assinaturas (
   FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
-
--- Comandos para inserir clientes populares
-INSERT INTO clientes (id, nome) VALUES
-(1, 'Netflix'),
-(2, 'Spotify'),
-(3, 'Amazon Prime Video'),
-(4, 'Disney+'),
-(5, 'HBO Max'),
-(6, 'Apple Music'),
-(7, 'YouTube Premium'),
-(8, 'GloboPlay'),
-(9, 'Deezer'),
-(10, 'Paramount+'),
-(11, 'Star+'),
-(12, 'Amazon Prime'),
-(13, 'PlayStation Plus'),
-(14, 'Xbox Game Pass'),
-(15, 'Adobe Creative Cloud'),
-(16, 'Microsoft 365'),
-(17, 'Dropbox'),
-(18, 'Google One'),
-(19, 'NordVPN'),
-(20, 'Crunchyroll'),
-(21, 'Notion'),
-(22, 'Canva'),
-(23, 'Coursera Plus'),
-(24, 'Duolingo Plus'),
-(25, 'LinkedIn Premium'),
-(26, 'Evernote'),
-(27, 'Tidal'),
-(28, 'Apple TV+'),
-(29, 'Discovery+'),
-(30, 'UOL Play'),
-(31, 'Directv GO'),
-(32, 'Mubi'),
-(33, 'Kindle Unlimited'),
-(34, 'Scribd'),
-(35, 'Globo Rural'),
-(36, 'Revista Veja'),
-(37, 'Clube Wine'),
-(38, 'Clube Livelo'),
-(39, 'Clube Smiles'),
-(40, 'Clube de Leitura TAG');
 
 -- Comandos para inserir serviços e planos populares
 INSERT INTO servicos (id, nome, descricao, preco) VALUES
