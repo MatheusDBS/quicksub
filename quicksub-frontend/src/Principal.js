@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import eyeIcon from './assets/eye.png'; // ajuste o caminho conforme o local onde você salvou
+import eyeOffIcon from './assets/eye-off.png'; // ajuste o caminho conforme o local onde você salvou
 
 function Principal({ onLogout }) {
   const [assinaturas, setAssinaturas] = useState([]);
@@ -8,7 +10,6 @@ function Principal({ onLogout }) {
   const [servicoId, setServicoId] = useState('');
   const [dataInicio, setDataInicio] = useState('');
   const [dataFim, setDataFim] = useState('');
-  const [status, setStatus] = useState('ativa');
   const [erro, setErro] = useState('');
   const [sucesso, setSucesso] = useState('');
   const [loading, setLoading] = useState(false);
@@ -20,6 +21,12 @@ function Principal({ onLogout }) {
   const [novaSenha, setNovaSenha] = useState('');
   const [confirmarSenha, setConfirmarSenha] = useState('');
   const [perfilMsg, setPerfilMsg] = useState('');
+  const [showNovaSenha, setShowNovaSenha] = useState(false);
+  const [showConfirmarSenha, setShowConfirmarSenha] = useState(false);
+  const [confirmarLogout, setConfirmarLogout] = useState(false);
+  const [confirmarExclusaoConta, setConfirmarExclusaoConta] = useState(false);
+  const [editandoAssinaturaId, setEditandoAssinaturaId] = useState(null);
+  const [editAssinatura, setEditAssinatura] = useState({ clienteId: '', servicoId: '', dataInicio: '', dataFim: '' });
 
   // Busca assinaturas, clientes e serviços existentes
   useEffect(() => {
@@ -70,11 +77,22 @@ function Principal({ onLogout }) {
     fetchServicos();
   }, [sucesso]);
 
-  // Filtra os serviços conforme o cliente selecionado
+  // Mostra apenas os planos (serviços) do cliente selecionado
   const planosFiltrados = servicos.filter(s => {
-    const cliente = clientes.find(c => c.id === Number(clienteId));
-    return cliente && s.nome === cliente.nome;
+    if (!clienteId) return false;
+    // Mostra apenas os planos do serviço escolhido (ex: se cliente é da Netflix, mostra só Netflix)
+    // Supondo que o nome do cliente seja igual ao nome do serviço/plano
+    const cliente = clientes.find(c => c.id === parseInt(clienteId));
+    if (!cliente) return false;
+    // Ajuste conforme sua lógica de relação cliente/serviço
+    return s.nome && cliente.nome && s.nome.toLowerCase() === cliente.nome.toLowerCase();
   });
+
+  // Mostra apenas os serviços que possuem pelo menos um plano disponível
+  const servicosComPlanos = servicos.filter(servico =>
+    // Um serviço só aparece se houver pelo menos um plano relacionado a ele
+    planosFiltrados.some(plano => plano.id === servico.id)
+  );
 
   // Cadastro de assinatura
   const handleSubmit = async (e) => {
@@ -103,13 +121,12 @@ function Principal({ onLogout }) {
           servico_id: servicoId,
           data_inicio: dataInicio,
           data_fim: dataFim,
-          status,
           user_id
         })
       });
       if (res.ok) {
         setSucesso('Assinatura registrada!');
-        setClienteId(''); setServicoId(''); setDataInicio(''); setDataFim(''); setStatus('ativa');
+        setClienteId(''); setServicoId(''); setDataInicio(''); setDataFim('');
       } else {
         setErro('Erro ao registrar assinatura');
       }
@@ -186,6 +203,92 @@ function Principal({ onLogout }) {
     }
   };
 
+  // Função para excluir conta do usuário logado
+  async function handleExcluirConta() {
+    setPerfilMsg('');
+    try {
+      const token = localStorage.getItem('token');
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const userId = payload.id;
+      const res = await fetch(`http://localhost:5000/api/users/${userId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        localStorage.removeItem('token');
+        window.location.reload();
+      } else {
+        setPerfilMsg('Erro ao excluir conta.');
+      }
+    } catch {
+      setPerfilMsg('Erro ao excluir conta.');
+    }
+    setConfirmarExclusaoConta(false);
+  }
+
+  // Função para iniciar edição de assinatura
+  const handleEditarAssinatura = (a) => {
+    setEditandoAssinaturaId(a.id);
+    setEditAssinatura({
+      clienteId: a.cliente_id,
+      servicoId: a.servico_id,
+      dataInicio: a.data_inicio ? a.data_inicio.slice(0, 10) : '',
+      dataFim: a.data_fim ? a.data_fim.slice(0, 10) : ''
+    });
+  };
+
+  // Função para salvar edição
+  const handleSalvarEdicaoAssinatura = async () => {
+    setErro('');
+    setSucesso('');
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`http://localhost:5000/api/assinaturas/${editandoAssinaturaId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          cliente_id: editAssinatura.clienteId,
+          servico_id: editAssinatura.servicoId,
+          data_inicio: editAssinatura.dataInicio,
+          data_fim: editAssinatura.dataFim
+        })
+      });
+      if (res.ok) {
+        setSucesso('Assinatura atualizada!');
+        setEditandoAssinaturaId(null);
+        setEditAssinatura({ clienteId: '', servicoId: '', dataInicio: '', dataFim: '' });
+        // Atualiza lista
+        const novasAssinaturas = assinaturas.map(a => a.id === editandoAssinaturaId ? { ...a, ...{
+          servico_id: editAssinatura.servicoId,
+          data_inicio: editAssinatura.dataInicio,
+          data_fim: editAssinatura.dataFim
+        }} : a);
+        setAssinaturas(novasAssinaturas);
+      } else {
+        setErro('Erro ao atualizar assinatura');
+      }
+    } catch {
+      setErro('Erro de conexão');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Função para calcular status da assinatura
+  function calcularStatus(dataInicio, dataFim) {
+    if (!dataInicio || !dataFim) return 'Indefinido';
+    const hoje = new Date();
+    const inicio = new Date(dataInicio);
+    const fim = new Date(dataFim);
+    if (hoje < inicio) return 'Inativa';
+    if (hoje > fim) return 'Expirada';
+    return 'Ativa';
+  }
+
   return (
     <div style={{ maxWidth: 700, margin: '2rem auto', background: 'var(--secondary)', padding: 24, borderRadius: 8 }}>
       <h2>Minhas Assinaturas</h2>
@@ -200,15 +303,82 @@ function Principal({ onLogout }) {
               <>
                 <div><b>Usuário:</b> {perfil.username}</div>
                 <button style={{ marginTop: 16, width: '100%' }} onClick={() => setEditando(true)}>Editar</button>
-                <button style={{ marginTop: 8, width: '100%' }} onClick={onLogout}>Sair</button>
-                <button style={{ marginTop: 8, width: '100%' }} onClick={() => setShowPerfil(false)}>Fechar</button>
+                <button style={{ marginTop: 8, width: '100%' }} onClick={() => setConfirmarLogout(true)}>Sair</button>
+                <button style={{ marginTop: 8, width: '100%', background: '#ff4d4f', color: '#fff', border: 'none', borderRadius: 4 }} onClick={() => setConfirmarExclusaoConta(true)}>Excluir conta</button>
+                {/* Botão X para fechar no canto superior direito */}
+                <button
+                  onClick={() => setShowPerfil(false)}
+                  style={{
+                    position: 'absolute',
+                    top: 8,
+                    right: 8,
+                    background: 'transparent',
+                    border: 'none',
+                    fontSize: 22,
+                    fontWeight: 'bold',
+                    color: '#888',
+                    cursor: 'pointer',
+                    padding: 0,
+                    lineHeight: 1
+                  }}
+                  title="Fechar"
+                  aria-label="Fechar"
+                >
+                  ×
+                </button>
                 {perfilMsg && <div style={{ color: 'var(--primary)', marginTop: 8 }}>{perfilMsg}</div>}
+                {confirmarLogout && (
+                  <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+                    <div style={{ background: '#fff', color: '#222', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.15)', padding: 24, minWidth: 220, textAlign: 'center' }}>
+                      <div style={{ marginBottom: 16 }}>Deseja realmente sair da conta?</div>
+                      <button style={{ background: '#ff4d4f', color: '#fff', border: 'none', borderRadius: 4, padding: '6px 16px', marginRight: 8, cursor: 'pointer' }} onClick={onLogout}>Sim</button>
+                      <button style={{ background: '#eee', color: '#222', border: 'none', borderRadius: 4, padding: '6px 16px', cursor: 'pointer' }} onClick={() => setConfirmarLogout(false)}>Não</button>
+                    </div>
+                  </div>
+                )}
+                {confirmarExclusaoConta && (
+                  <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+                    <div style={{ background: '#fff', color: '#222', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.15)', padding: 24, minWidth: 220, textAlign: 'center' }}>
+                      <div style={{ marginBottom: 16 }}>Tem certeza que deseja excluir sua conta? Esta ação não poderá ser desfeita.</div>
+                      <button style={{ background: '#ff4d4f', color: '#fff', border: 'none', borderRadius: 4, padding: '6px 16px', marginRight: 8, cursor: 'pointer' }} onClick={async () => { await handleExcluirConta(); }}>Excluir</button>
+                      <button style={{ background: '#eee', color: '#222', border: 'none', borderRadius: 4, padding: '6px 16px', cursor: 'pointer' }} onClick={() => setConfirmarExclusaoConta(false)}>Cancelar</button>
+                    </div>
+                  </div>
+                )}
               </>
             ) : (
               <>
                 <input type="text" value={novoUsername} onChange={e => setNovoUsername(e.target.value)} style={{ width: '100%', marginBottom: 8, padding: 8 }} />
-                <input type="password" value={novaSenha} onChange={e => setNovaSenha(e.target.value)} style={{ width: '100%', marginBottom: 8, padding: 8 }} placeholder="Nova senha (opcional)" />
-                <input type="password" value={confirmarSenha} onChange={e => setConfirmarSenha(e.target.value)} style={{ width: '100%', marginBottom: 8, padding: 8 }} placeholder="Confirmar nova senha" />
+                <div style={{ position: 'relative', width: '100%', marginBottom: 12 }}>
+                  <input
+                    type={showNovaSenha ? 'text' : 'password'}
+                    value={novaSenha}
+                    onChange={e => setNovaSenha(e.target.value)}
+                    style={{ width: '100%', padding: 8, borderRadius: 4, border: '1px solid #ccc', boxSizing: 'border-box', paddingRight: 40 }}
+                    placeholder="Nova senha (opcional)"
+                  />
+                  <img
+                    src={showNovaSenha ? eyeOffIcon : eyeIcon}
+                    alt="Toggle Password Visibility"
+                    onClick={() => setShowNovaSenha(!showNovaSenha)}
+                    style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', width: 24, height: 24, cursor: 'pointer', opacity: 0.7 }}
+                  />
+                </div>
+                <div style={{ position: 'relative', width: '100%', marginBottom: 12 }}>
+                  <input
+                    type={showConfirmarSenha ? 'text' : 'password'}
+                    value={confirmarSenha}
+                    onChange={e => setConfirmarSenha(e.target.value)}
+                    style={{ width: '100%', padding: 8, borderRadius: 4, border: '1px solid #ccc', boxSizing: 'border-box', paddingRight: 40 }}
+                    placeholder="Confirmar nova senha"
+                  />
+                  <img
+                    src={showConfirmarSenha ? eyeOffIcon : eyeIcon}
+                    alt="Toggle Password Visibility"
+                    onClick={() => setShowConfirmarSenha(!showConfirmarSenha)}
+                    style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', width: 24, height: 24, cursor: 'pointer', opacity: 0.7 }}
+                  />
+                </div>
                 <button style={{ width: '100%' }} onClick={handlePerfilSalvar}>Salvar</button>
                 <button style={{ marginTop: 8, width: '100%' }} onClick={() => setEditando(false)}>Cancelar</button>
                 {perfilMsg && <div style={{ color: 'var(--primary)', marginTop: 8 }}>{perfilMsg}</div>}
@@ -232,11 +402,6 @@ function Principal({ onLogout }) {
         </select>
         <input type="date" value={dataInicio} onChange={e => setDataInicio(e.target.value)} required style={{ width: 280, marginBottom: 8, padding: 8 }} placeholder="Data de início" />
         <input type="date" value={dataFim} onChange={e => setDataFim(e.target.value)} required style={{ width: 280, marginBottom: 8, padding: 8 }} placeholder="Data de fim" />
-        <select value={status} onChange={e => setStatus(e.target.value)} required style={{ width: 280, marginBottom: 8, padding: 8 }}>
-          <option value="ativa">Ativa</option>
-          <option value="inativa">Inativa</option>
-          <option value="cancelada">Cancelada</option>
-        </select>
         <button type="submit" style={{ width: 280 }} disabled={loading}>{loading ? 'Registrando...' : 'Registrar Assinatura'}</button>
       </form>
       {erro && <div style={{ color: 'var(--accent)', marginBottom: 8 }}>{erro}</div>}
@@ -251,6 +416,48 @@ function Principal({ onLogout }) {
             if (isNaN(d)) return data;
             return d.toLocaleDateString('pt-BR');
           };
+          if (editandoAssinaturaId === a.id) {
+            // Edição inline
+            const planosDoCliente = servicos.filter(s => cliente && s.nome === cliente.nome);
+            return (
+              <li key={a.id || i} style={{ background: 'var(--primary)', margin: '12px 0', padding: 16, borderRadius: 6, position: 'relative' }}>
+                <div style={{ marginBottom: 8 }}><b>Cliente:</b> {cliente ? cliente.nome : a.cliente_id}</div>
+                <div style={{ marginBottom: 8 }}>
+                  <b>Plano:</b>
+                  <select
+                    value={editAssinatura.servicoId}
+                    onChange={e => setEditAssinatura({ ...editAssinatura, servicoId: e.target.value })}
+                    style={{ marginLeft: 8, padding: 4 }}
+                  >
+                    <option value="">Selecione o plano</option>
+                    {planosDoCliente.map(s => (
+                      <option key={s.id} value={s.id}>{s.descricao ? `${s.descricao} - R$ ${s.preco}` : `${s.plano || ''} - R$ ${s.preco}`}</option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ marginBottom: 8 }}>
+                  <b>Início:</b>
+                  <input
+                    type="date"
+                    value={editAssinatura.dataInicio}
+                    onChange={e => setEditAssinatura({ ...editAssinatura, dataInicio: e.target.value })}
+                    style={{ marginLeft: 8, padding: 4 }}
+                  />
+                </div>
+                <div style={{ marginBottom: 8 }}>
+                  <b>Fim:</b>
+                  <input
+                    type="date"
+                    value={editAssinatura.dataFim}
+                    onChange={e => setEditAssinatura({ ...editAssinatura, dataFim: e.target.value })}
+                    style={{ marginLeft: 8, padding: 4 }}
+                  />
+                </div>
+                <button style={{ background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 4, padding: '6px 16px', marginRight: 8, cursor: 'pointer' }} onClick={handleSalvarEdicaoAssinatura} disabled={loading}>{loading ? 'Salvando...' : 'Salvar'}</button>
+                <button style={{ background: '#eee', color: '#222', border: 'none', borderRadius: 4, padding: '6px 16px', cursor: 'pointer' }} onClick={() => setEditandoAssinaturaId(null)}>Cancelar</button>
+              </li>
+            );
+          }
           return (
             <li key={a.id || i} style={{ background: 'var(--primary)', margin: '12px 0', padding: 16, borderRadius: 6, position: 'relative' }}>
               <div style={{ flex: 1, textAlign: 'left' }}>
@@ -259,23 +466,19 @@ function Principal({ onLogout }) {
                 <strong>Preço:</strong> R$ {servico ? servico.preco : ''} <br />
                 <strong>Início:</strong> {formatarData(a.data_inicio)} <br />
                 <strong>Fim:</strong> {formatarData(a.data_fim)} <br />
-                <strong>Status:</strong> {a.status.charAt(0).toUpperCase() + a.status.slice(1)}
+                <strong>Status:</strong> {calcularStatus(a.data_inicio, a.data_fim)}
               </div>
               <button
-                style={{
-                  position: 'absolute',
-                  top: 16,
-                  right: 16,
-                  background: '#ff4d4f',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: 4,
-                  padding: '6px 12px',
-                  cursor: 'pointer'
-                }}
+                style={{ position: 'absolute', top: 16, right: 16, background: '#ff4d4f', color: '#fff', border: 'none', borderRadius: 4, padding: '6px 12px', cursor: 'pointer' }}
                 onClick={() => setConfirmarExclusao(a.id)}
               >
                 Excluir
+              </button>
+              <button
+                style={{ position: 'absolute', top: 16, right: 90, background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 4, padding: '6px 12px', cursor: 'pointer' }}
+                onClick={() => handleEditarAssinatura(a)}
+              >
+                Editar
               </button>
               {confirmarExclusao === a.id && (
                 <div style={{

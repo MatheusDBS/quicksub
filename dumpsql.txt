@@ -32,8 +32,7 @@ CREATE TABLE IF NOT EXISTS assinaturas (
   FOREIGN KEY (servico_id) REFERENCES servicos(id),
   FOREIGN KEY (user_id) REFERENCES users(id)
 );
--- Comando para inserir um admin padrão (opcional)
--- INSERT INTO users (username, email, password) VALUES ('admin', 'admin@gmail.com', 'admin@123');
+
 
 -- Comandos para inserir clientes populares
 INSERT INTO clientes (id, nome) VALUES

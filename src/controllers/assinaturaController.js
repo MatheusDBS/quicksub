@@ -1,8 +1,23 @@
 const Assinatura = require('../models/Assinatura');
+const Cliente = require('../models/Cliente');
 
 exports.create = async (req, res) => {
   try {
-    const { cliente_id, servico_id, data_inicio, data_fim, status } = req.body;
+    let { cliente_id, cliente_nome, cliente_email, servico_id, data_inicio, data_fim, status } = req.body;
+    // Se não veio cliente_id, tenta buscar pelo nome
+    if (!cliente_id && cliente_nome) {
+      const pool = require('../config/db');
+      const [rows] = await pool.query('SELECT * FROM clientes WHERE nome = ?', [cliente_nome]);
+      if (rows.length > 0) {
+        cliente_id = rows[0].id;
+      } else {
+        // Cria o cliente se não existir
+        cliente_id = await Cliente.create(cliente_nome, cliente_email || '');
+      }
+    }
+    if (!cliente_id) {
+      return res.status(400).json({ message: 'Cliente não informado.' });
+    }
     const id = await Assinatura.create({
       cliente_id,
       servico_id,

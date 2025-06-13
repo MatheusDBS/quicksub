@@ -28,6 +28,12 @@ const Assinatura = {
   },
   delete: async (id) => {
     await pool.query('DELETE FROM assinaturas WHERE id = ?', [id]);
+  },
+  deleteByClienteId: async (clienteId) => {
+    await pool.query('DELETE FROM assinaturas WHERE cliente_id = ?', [clienteId]);
+  },
+  deleteByServicoId: async (servicoId) => {
+    await pool.query('DELETE FROM assinaturas WHERE servico_id = ?', [servicoId]);
   }
 };
 

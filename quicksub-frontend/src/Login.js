@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-
+import eyeIcon from './assets/eye.png'; // ajuste o caminho conforme o local onde você salvou
+import eyeOffIcon from './assets/eye-off.png'; // ajuste o caminho conforme o local onde você salvou
 function Login({ onLogin }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [erro, setErro] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -39,18 +41,26 @@ function Login({ onLogin }) {
         value={username}
         onChange={e => setUsername(e.target.value)}
         required
-        style={{ width: 220, marginBottom: 12, padding: 8 }}
+        style={{ width: '100%', marginBottom: 12, padding: 8, borderRadius: 4, border: '1px solid #ccc', boxSizing: 'border-box' }}
         autoComplete="username"
       />
-      <input
-        type="password"
-        placeholder="Senha"
-        value={password}
-        onChange={e => setPassword(e.target.value)}
-        required
-        style={{ width: 220, marginBottom: 12, padding: 8 }}
-        autoComplete="current-password"
-      />
+      <div style={{ position: 'relative', width: '100%', marginBottom: 12 }}>
+        <input
+          type={showPassword ? 'text' : 'password'}
+          placeholder="Senha"
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+          required
+          style={{ width: '100%', padding: 8, borderRadius: 4, border: '1px solid #ccc', boxSizing: 'border-box', paddingRight: 40 }}
+          autoComplete="current-password"
+        />
+        <img
+          src={showPassword ? eyeOffIcon : eyeIcon}
+          alt="Toggle Password Visibility"
+          onClick={() => setShowPassword(!showPassword)}
+          style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', width: 24, height: 24, cursor: 'pointer', opacity: 0.7 }}
+        />
+      </div>
       <button type="submit" style={{ width: 220 }} disabled={loading}>
         {loading ? 'Entrando...' : 'Entrar'}
       </button>

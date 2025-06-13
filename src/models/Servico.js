@@ -1,4 +1,5 @@
 const pool = require('../config/db');
+const Assinatura = require('../models/Assinatura');
 
 const Servico = {
   create: async (nome, descricao, preco) => {
@@ -17,6 +18,8 @@ const Servico = {
     await pool.query('UPDATE servicos SET nome = ?, descricao = ?, preco = ? WHERE id = ?', [nome, descricao, preco, id]);
   },
   delete: async (id) => {
+    // Exclui assinaturas relacionadas ao serviço
+    await Assinatura.deleteByServicoId(id);
     await pool.query('DELETE FROM servicos WHERE id = ?', [id]);
   }
 };

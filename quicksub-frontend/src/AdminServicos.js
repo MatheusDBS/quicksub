@@ -18,6 +18,10 @@ function AdminServicos() {
   const [novaSenha, setNovaSenha] = useState('');
   const [confirmarSenha, setConfirmarSenha] = useState('');
   const [perfilMsg, setPerfilMsg] = useState('');
+  // Novo: lista de planos para cadastro múltiplo
+  const [planos, setPlanos] = useState([{ descricao: '', preco: '' }]);
+  // Estado para controlar quais grupos estão abertos
+  const [abertos, setAbertos] = useState({});
 
   useEffect(() => {
     fetchServicos();
@@ -53,27 +57,48 @@ function AdminServicos() {
     }
   };
 
+  // Adiciona novo campo de plano
+  const adicionarPlano = () => {
+    setPlanos([...planos, { descricao: '', preco: '' }]);
+  };
+
+  // Remove um campo de plano
+  const removerPlano = (idx) => {
+    setPlanos(planos.filter((_, i) => i !== idx));
+  };
+
+  // Atualiza valor de um campo de plano
+  const handlePlanoChange = (idx, field, value) => {
+    setPlanos(planos.map((p, i) => i === idx ? { ...p, [field]: value } : p));
+  };
+
+  // Novo handleAdd para múltiplos planos
   const handleAdd = async (e) => {
     e.preventDefault();
     setMsg('');
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch('http://localhost:5000/api/servicos', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ nome, descricao, preco })
-      });
-      if (res.ok) {
-        setMsg('Serviço adicionado!');
-        setNome(''); setDescricao(''); setPreco('');
-        fetchServicos();
-      } else {
-        setMsg('Erro ao adicionar serviço.');
+      for (const plano of planos) {
+        if (!plano.descricao || !plano.preco) continue;
+        const res = await fetch('http://localhost:5000/api/servicos', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ nome, descricao: plano.descricao, preco: plano.preco })
+        });
+        if (!res.ok) {
+          setMsg('Erro ao adicionar serviço.');
+          setLoading(false);
+          return;
+        }
       }
+      setMsg('Serviço(s) adicionado(s)!');
+      setNome('');
+      setPlanos([{ descricao: '', preco: '' }]);
+      fetchServicos();
     } catch {
       setMsg('Erro de conexão.');
     }
@@ -167,37 +192,64 @@ function AdminServicos() {
     }
   };
 
+  // Agrupa os serviços por nome
+  const servicosAgrupados = servicos.reduce((acc, servico) => {
+    if (!acc[servico.nome]) acc[servico.nome] = [];
+    acc[servico.nome].push(servico);
+    return acc;
+  }, {});
+
+  // Alterna o grupo aberto/fechado
+  const toggleGrupo = (nomeGrupo) => {
+    setAbertos(prev => ({ ...prev, [nomeGrupo]: !prev[nomeGrupo] }));
+  };
+
   return (
     <div style={{ maxWidth: 600, margin: '2rem auto', background: 'var(--secondary)', padding: 24, borderRadius: 8 }}>
       <h2>Administração de Serviços</h2>
       <form onSubmit={handleAdd} style={{ marginBottom: 32, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <input type="text" value={nome} onChange={e => setNome(e.target.value)} placeholder="Nome do serviço" required style={{ width: 280, marginBottom: 8, padding: 8 }} />
-        <input type="text" value={descricao} onChange={e => setDescricao(e.target.value)} placeholder="Descrição do plano" required style={{ width: 280, marginBottom: 8, padding: 8 }} />
-        <input type="number" value={preco} onChange={e => setPreco(e.target.value)} placeholder="Preço" required min="0" step="0.01" style={{ width: 280, marginBottom: 8, padding: 8 }} />
-        <button type="submit" style={{ width: 280 }} disabled={loading}>{loading ? 'Adicionando...' : 'Adicionar Serviço'}</button>
+        {planos.map((plano, idx) => (
+          <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+            <input type="text" value={plano.descricao} onChange={e => handlePlanoChange(idx, 'descricao', e.target.value)} placeholder="Descrição do plano" required style={{ width: 140, padding: 8 }} />
+            <input type="number" value={plano.preco} onChange={e => handlePlanoChange(idx, 'preco', e.target.value)} placeholder="Preço" required min="0" step="0.01" style={{ width: 90, padding: 8 }} />
+            {planos.length > 1 && <button type="button" onClick={() => removerPlano(idx)} style={{ background: '#ff4d4f', color: '#fff', padding: '4px 10px' }}>Remover</button>}
+          </div>
+        ))}
+        <button type="button" onClick={adicionarPlano} style={{ width: 280, marginBottom: 8, background: '#2196f3' }}>Adicionar outro plano</button>
+        <button type="submit" style={{ width: 280 }} disabled={loading}>{loading ? 'Adicionando...' : 'Adicionar Serviço(s)'}</button>
         {msg && <div style={{ color: 'var(--primary)', marginTop: 8 }}>{msg}</div>}
       </form>
       <h3>Serviços cadastrados</h3>
       {loading ? <div>Carregando...</div> : (
         <ul style={{ listStyle: 'none', padding: 0 }}>
-          {servicos.map(s => (
-            <li key={s.id} style={{ background: 'var(--primary)', color: '#fff', margin: '8px 0', padding: 12, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              {editandoId === s.id ? (
-                <>
-                  <input type="text" value={editNome} onChange={e => setEditNome(e.target.value)} style={{ width: 100, marginRight: 8, padding: 4 }} />
-                  <input type="text" value={editDescricao} onChange={e => setEditDescricao(e.target.value)} style={{ width: 120, marginRight: 8, padding: 4 }} />
-                  <input type="number" value={editPreco} onChange={e => setEditPreco(e.target.value)} style={{ width: 70, marginRight: 8, padding: 4 }} />
-                  <button style={{ background: '#4caf50', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 10px', marginRight: 4 }} onClick={() => handleSalvarEdicao(s.id)}>Salvar</button>
-                  <button style={{ background: '#eee', color: '#222', border: 'none', borderRadius: 4, padding: '4px 10px' }} onClick={() => setEditandoId(null)}>Cancelar</button>
-                </>
-              ) : (
-                <>
-                  <span><b>{s.nome}</b> - {s.descricao} - R$ {s.preco}</span>
-                  <span>
-                    <button style={{ background: '#2196f3', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 10px', marginRight: 4 }} onClick={() => handleEditar(s)}>Editar</button>
-                    <button style={{ background: '#ff4d4f', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 10px' }} onClick={() => handleExcluir(s.id)}>Excluir</button>
-                  </span>
-                </>
+          {Object.entries(servicosAgrupados).map(([nomeGrupo, planos]) => (
+            <li key={nomeGrupo} style={{ background: 'var(--primary)', color: '#fff', margin: '12px 0', padding: 16, borderRadius: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }} onClick={() => toggleGrupo(nomeGrupo)}>
+                <span style={{ fontWeight: 'bold', fontSize: 18 }}>{nomeGrupo}</span>
+                <span style={{ fontSize: 22, marginLeft: 8 }}>{abertos[nomeGrupo] ? '▼' : '▶'}</span>
+              </div>
+              {abertos[nomeGrupo] && (
+                <ul style={{ listStyle: 'none', padding: 0, marginTop: 12 }}>
+                  {planos.map((plano) => (
+                    <li key={plano.id} style={{ display: 'flex', alignItems: 'center', marginBottom: 6 }}>
+                      {editandoId === plano.id ? (
+                        <>
+                          <input type="text" value={editDescricao} onChange={e => setEditDescricao(e.target.value)} style={{ width: 120, marginRight: 8, padding: 4 }} />
+                          <input type="number" value={editPreco} onChange={e => setEditPreco(e.target.value)} style={{ width: 70, marginRight: 8, padding: 4 }} />
+                          <button style={{ background: '#4caf50', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 10px', marginRight: 4 }} onClick={() => handleSalvarEdicao(plano.id)}>Salvar</button>
+                          <button style={{ background: '#eee', color: '#222', border: 'none', borderRadius: 4, padding: '4px 10px' }} onClick={() => setEditandoId(null)}>Cancelar</button>
+                        </>
+                      ) : (
+                        <>
+                          <span style={{ minWidth: 120 }}>{plano.descricao}</span> - R$ {plano.preco}
+                          <button style={{ background: '#2196f3', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 10px', marginLeft: 8, marginRight: 4 }} onClick={e => { e.stopPropagation(); setEditandoId(plano.id); setEditDescricao(plano.descricao); setEditPreco(plano.preco); }}>Editar</button>
+                          <button style={{ background: '#ff4d4f', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 10px' }} onClick={e => { e.stopPropagation(); handleExcluir(plano.id); }}>Excluir</button>
+                        </>
+                      )}
+                    </li>
+                  ))}
+                </ul>
               )}
             </li>
           ))}
