@@ -151,3 +151,14 @@ INSERT INTO servicos (id, nome, descricao, preco) VALUES
 (119, 'Clube de Leitura TAG', 'Curadoria', 59.90),
 (120, 'Clube de Leitura TAG', 'Inéditos', 49.90);
 
+CREATE TABLE service_requests (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  nome_servico VARCHAR(255) NOT NULL,
+  descricao TEXT,
+  status ENUM('pendente', 'aprovado', 'rejeitado') DEFAULT 'pendente',
+  resposta_admin TEXT,
+  criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+  lida_por_usuario TINYINT(1) DEFAULT 0,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);

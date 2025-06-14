@@ -26,6 +26,13 @@ function Principal({ onLogout }) {
   const [confirmarExclusaoConta, setConfirmarExclusaoConta] = useState(false);
   const [editandoAssinaturaId, setEditandoAssinaturaId] = useState(null);
   const [editAssinatura, setEditAssinatura] = useState({ servicoId: '', dataInicio: '', dataFim: '' });
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [requestNome, setRequestNome] = useState('');
+  const [requestDescricao, setRequestDescricao] = useState('');
+  const [requestMsg, setRequestMsg] = useState('');
+  const [showRequestsUser, setShowRequestsUser] = useState(false);
+  const [userRequests, setUserRequests] = useState([]);
+  const [userRequestsMsg, setUserRequestsMsg] = useState('');
 
   // Busca assinaturas e serviços existentes
   useEffect(() => {
@@ -280,6 +287,66 @@ function Principal({ onLogout }) {
     return 'Ativa';
   }
 
+  // Função para enviar request de novo serviço
+  const handleRequestSubmit = async (e) => {
+    e.preventDefault();
+    setRequestMsg('');
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('http://localhost:5000/api/service-requests', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ nome_servico: requestNome, descricao: requestDescricao })
+      });
+      if (res.ok) {
+        setRequestMsg('Solicitação enviada! Aguarde resposta do admin.');
+        setRequestNome('');
+        setRequestDescricao('');
+      } else {
+        setRequestMsg('Erro ao enviar solicitação.');
+      }
+    } catch {
+      setRequestMsg('Erro de conexão.');
+    }
+  };
+
+  // Buscar requests do usuário
+  const fetchUserRequests = async () => {
+    setUserRequestsMsg('');
+    try {
+      const token = localStorage.getItem('token');
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const userId = payload.id;
+      // Busca apenas as requests não lidas do usuário
+      const res = await fetch(`http://localhost:5000/api/service-requests/user/${userId}/nao-lidas`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setUserRequests(data);
+      } else {
+        setUserRequestsMsg('Erro ao buscar solicitações.');
+      }
+    } catch {
+      setUserRequestsMsg('Erro de conexão.');
+    }
+  };
+
+  // Marcar request como lida pelo usuário
+  const handleMarcarRequestLida = async (id) => {
+    try {
+      const token = localStorage.getItem('token');
+      await fetch(`http://localhost:5000/api/service-requests/${id}/lida`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      setUserRequests(userRequests.filter(r => r.id !== id));
+    } catch {}
+  };
+
   return (
     <div style={{ maxWidth: 700, margin: '2rem auto', background: 'var(--secondary)', padding: 24, borderRadius: 8 }}>
       <h2>Minhas Assinaturas</h2>
@@ -397,6 +464,51 @@ function Principal({ onLogout }) {
       </form>
       {erro && <div style={{ color: 'var(--accent)', marginBottom: 8 }}>{erro}</div>}
       {sucesso && <div style={{ color: 'var(--primary)', marginBottom: 8 }}>{sucesso}</div>}
+      <button style={{ width: 280, marginBottom: 8 }} type="button" onClick={() => setShowRequestModal(true)}>
+        Solicitar novo serviço
+      </button>
+      {showRequestModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#fff', color: '#222', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.15)', padding: 24, minWidth: 320 }}>
+            <h3>Solicitar novo serviço</h3>
+            <form onSubmit={handleRequestSubmit}>
+              <input type="text" value={requestNome} onChange={e => setRequestNome(e.target.value)} placeholder="Nome do serviço" required style={{ width: '100%', marginBottom: 8, padding: 8 }} />
+              <textarea value={requestDescricao} onChange={e => setRequestDescricao(e.target.value)} placeholder="Descrição (opcional)" style={{ width: '100%', marginBottom: 8, padding: 8, minHeight: 60 }} />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button type="submit" style={{ background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 4, padding: '6px 16px', cursor: 'pointer' }}>Enviar</button>
+                <button type="button" style={{ background: '#eee', color: '#222', border: 'none', borderRadius: 4, padding: '6px 16px', cursor: 'pointer' }} onClick={() => { setShowRequestModal(false); setRequestMsg(''); }}>Cancelar</button>
+              </div>
+            </form>
+            {requestMsg && <div style={{ color: 'var(--primary)', marginTop: 8 }}>{requestMsg}</div>}
+          </div>
+        </div>
+      )}
+      <button style={{ width: 280, marginBottom: 8 }} type="button" onClick={() => { setShowRequestsUser(true); fetchUserRequests(); }}>
+        Minhas solicitações de serviço
+      </button>
+      {showRequestsUser && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#fff', color: '#222', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.15)', padding: 24, minWidth: 400, maxHeight: 600, overflowY: 'auto' }}>
+            <h3>Minhas solicitações de serviço</h3>
+            {userRequests.length === 0 && <div>Nenhuma solicitação enviada.</div>}
+            <ul style={{ listStyle: 'none', padding: 0 }}>
+              {userRequests.map(r => (
+                <li key={r.id} style={{ border: '1px solid #eee', borderRadius: 6, marginBottom: 12, padding: 12, background: '#fafafa' }}>
+                  <b>Serviço:</b> {r.nome_servico} <br />
+                  <b>Descrição:</b> {r.descricao || '-'} <br />
+                  <b>Status:</b> {r.status} <br />
+                  <b>Resposta admin:</b> {r.resposta_admin || '-'} <br />
+                  {r.status !== 'pendente' && (
+                    <button style={{ marginTop: 8 }} onClick={() => handleMarcarRequestLida(r.id)}>Marcar como lida</button>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <button style={{ marginTop: 8 }} onClick={() => setShowRequestsUser(false)}>Fechar</button>
+            {userRequestsMsg && <div style={{ color: 'var(--primary)', marginTop: 8 }}>{userRequestsMsg}</div>}
+          </div>
+        </div>
+      )}
       <ul style={{ listStyle: 'none', padding: 0 }}>
         {assinaturas.map((a, i) => {
           const servico = servicos.find(s => s.id === a.servico_id);

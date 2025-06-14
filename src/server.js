@@ -11,10 +11,12 @@ const userRoutes = require('./routes/userRoutes');
 const servicoRoutes = require('./routes/servicoRoutes');
 const clienteRoutes = require('./routes/clienteRoutes');
 const assinaturaRoutes = require('./routes/assinaturaRoutes');
+const serviceRequestRoutes = require('./routes/serviceRequestRoutes');
 app.use('/api/users', userRoutes);
 app.use('/api/servicos', servicoRoutes);
 app.use('/api/clientes', clienteRoutes);
 app.use('/api/assinaturas', assinaturaRoutes);
+app.use('/api/service-requests', serviceRequestRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

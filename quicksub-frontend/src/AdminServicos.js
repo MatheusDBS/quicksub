@@ -22,6 +22,12 @@ function AdminServicos() {
   const [planos, setPlanos] = useState([{ descricao: '', preco: '' }]);
   // Estado para controlar quais grupos estão abertos
   const [abertos, setAbertos] = useState({});
+  const [requests, setRequests] = useState([]);
+  const [showRequests, setShowRequests] = useState(false);
+  const [requestMsg, setRequestMsg] = useState('');
+  const [resposta, setResposta] = useState('');
+  const [respostaStatus, setRespostaStatus] = useState('pendente');
+  const [selectedRequest, setSelectedRequest] = useState(null);
 
   useEffect(() => {
     fetchServicos();
@@ -54,6 +60,25 @@ function AdminServicos() {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Buscar requests de novos serviços
+  const fetchRequests = async () => {
+    setRequestMsg('');
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('http://localhost:5000/api/service-requests', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setRequests(data);
+      } else {
+        setRequestMsg('Erro ao buscar solicitações.');
+      }
+    } catch {
+      setRequestMsg('Erro de conexão.');
     }
   };
 
@@ -204,6 +229,34 @@ function AdminServicos() {
     setAbertos(prev => ({ ...prev, [nomeGrupo]: !prev[nomeGrupo] }));
   };
 
+  // Marcar request como respondida pelo admin (ao responder)
+  const handleResponderRequest = async (id) => {
+    setRequestMsg('');
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`http://localhost:5000/api/service-requests/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ status: respostaStatus, resposta_admin: resposta })
+      });
+      if (res.ok) {
+        setRequestMsg('Resposta enviada!');
+        setResposta('');
+        setRespostaStatus('pendente');
+        setSelectedRequest(null);
+        // Remove da lista após resposta
+        setRequests(requests.filter(r => r.id !== id));
+      } else {
+        setRequestMsg('Erro ao responder solicitação.');
+      }
+    } catch {
+      setRequestMsg('Erro de conexão.');
+    }
+  };
+
   return (
     <div style={{ maxWidth: 600, margin: '2rem auto', background: 'var(--secondary)', padding: 24, borderRadius: 8 }}>
       <h2>Administração de Serviços</h2>
@@ -267,7 +320,27 @@ function AdminServicos() {
                 <div><b>Usuário:</b> {perfil.username}</div>
                 <button style={{ marginTop: 16, width: '100%' }} onClick={() => setEditando(true)}>Editar</button>
                 <button style={{ marginTop: 8, width: '100%' }} onClick={() => { localStorage.removeItem('token'); window.location.reload(); }}>Sair</button>
-                <button style={{ marginTop: 8, width: '100%' }} onClick={() => setShowPerfil(false)}>Fechar</button>
+                {/* Botão X para fechar no canto superior direito */}
+                <button
+                  onClick={() => setShowPerfil(false)}
+                  style={{
+                    position: 'absolute',
+                    top: 8,
+                    right: 8,
+                    background: 'transparent',
+                    border: 'none',
+                    fontSize: 22,
+                    fontWeight: 'bold',
+                    color: '#888',
+                    cursor: 'pointer',
+                    padding: 0,
+                    lineHeight: 1
+                  }}
+                  title="Fechar"
+                  aria-label="Fechar"
+                >
+                  ×
+                </button>
                 {perfilMsg && <div style={{ color: 'var(--primary)', marginTop: 8 }}>{perfilMsg}</div>}
               </>
             ) : (
@@ -283,6 +356,48 @@ function AdminServicos() {
           </div>
         )}
       </div>
+      <button style={{ width: 280, marginBottom: 8 }} type="button" onClick={() => { setShowRequests(true); fetchRequests(); }}>
+        Solicitações de novos serviços
+      </button>
+      {showRequests && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#fff', color: '#222', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.15)', padding: 24, minWidth: 400, maxHeight: 600, overflowY: 'auto' }}>
+            <h3>Solicitações de novos serviços</h3>
+            {requests.length === 0 && <div>Nenhuma solicitação.</div>}
+            <ul style={{ listStyle: 'none', padding: 0 }}>
+              {requests.map(r => (
+                <li key={r.id} style={{ border: '1px solid #eee', borderRadius: 6, marginBottom: 12, padding: 12, background: '#fafafa' }}>
+                  <b>Usuário:</b> {r.username || r.user_id} <br />
+                  <b>Serviço:</b> {r.nome_servico} <br />
+                  <b>Descrição:</b> {r.descricao || '-'} <br />
+                  <b>Status:</b> {r.status} <br />
+                  <b>Resposta admin:</b> {r.resposta_admin || '-'} <br />
+                  {selectedRequest && selectedRequest.id === r.id ? (
+                    <div style={{ marginTop: 12 }}>
+                      <h4>Responder solicitação</h4>
+                      <div><b>Serviço:</b> {selectedRequest.nome_servico}</div>
+                      <textarea value={resposta} onChange={e => setResposta(e.target.value)} placeholder="Resposta do admin" style={{ width: '100%', marginBottom: 8, padding: 8, minHeight: 60 }} />
+                      <select value={respostaStatus} onChange={e => setRespostaStatus(e.target.value)} style={{ width: '100%', marginBottom: 8, padding: 8 }}>
+                        <option value="aprovado">Aprovar</option>
+                        <option value="rejeitado">Rejeitar</option>
+                        <option value="pendente">Pendente</option>
+                      </select>
+                      <button style={{ background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 4, padding: '6px 16px', cursor: 'pointer', marginRight: 8 }} onClick={() => handleResponderRequest(selectedRequest.id)}>Enviar resposta</button>
+                      <button style={{ background: '#eee', color: '#222', border: 'none', borderRadius: 4, padding: '6px 16px', cursor: 'pointer' }} onClick={() => setSelectedRequest(null)}>Cancelar</button>
+                    </div>
+                  ) : (
+                    r.status === 'pendente' && (
+                      <button style={{ marginTop: 8 }} onClick={() => { setSelectedRequest(r); setResposta(r.resposta_admin || ''); setRespostaStatus('aprovado'); }}>Responder</button>
+                    )
+                  )}
+                </li>
+              ))}
+            </ul>
+            <button style={{ marginTop: 8 }} onClick={() => setShowRequests(false)}>Fechar</button>
+            {requestMsg && <div style={{ color: 'var(--primary)', marginTop: 8 }}>{requestMsg}</div>}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
