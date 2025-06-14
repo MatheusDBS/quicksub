@@ -4,7 +4,7 @@ import Cadastro from './Cadastro';
 import Principal from './Principal';
 import AdminServicos from './AdminServicos';
 import './App.css';
-import logo from './assets/Logo.png.png';
+import logo from './assets/Logo.png';
 
 function App() {
   const [tela, setTela] = useState('login');
