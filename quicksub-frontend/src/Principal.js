@@ -91,17 +91,7 @@ function Principal({ onLogout }) {
       } catch {
         user_id = 1; // fallback para teste
       }
-      // Buscar cliente_id ou cliente_nome a partir do serviço selecionado
-      const servicoSelecionado = servicos.find(s => s.id == planoId);
-      console.log('servicoSelecionado:', servicoSelecionado); // <-- log para debug
-      let cliente_id = servicoSelecionado ? (servicoSelecionado.cliente_id || servicoSelecionado.id_cliente) : null;
-      let cliente_nome = servicoSelecionado ? (servicoSelecionado.cliente_nome || servicoSelecionado.cliente || servicoSelecionado.nome_cliente) : null;
-      // Solução temporária para teste: se não houver cliente, usa 1
-      if (!cliente_id && !cliente_nome) {
-        cliente_id = 1;
-      }
-      // Log dos dados enviados
-      console.log('Enviando assinatura:', { cliente_id, cliente_nome, servico_id: planoId, data_inicio: dataInicio, data_fim: dataFim, user_id });
+      // Não buscar cliente_id/cliente_nome, usar apenas servico_id
       if (!planoId || !dataInicio || !dataFim || !user_id) {
         setErro('Preencha todos os campos corretamente.');
         setLoading(false);
@@ -113,8 +103,6 @@ function Principal({ onLogout }) {
         data_fim: dataFim,
         user_id
       };
-      if (cliente_id) body.cliente_id = cliente_id;
-      else if (cliente_nome) body.cliente_nome = cliente_nome;
       const res = await fetch('http://localhost:5000/api/assinaturas', {
         method: 'POST',
         headers: {
@@ -234,6 +222,9 @@ function Principal({ onLogout }) {
       dataInicio: a.data_inicio ? a.data_inicio.slice(0, 10) : '',
       dataFim: a.data_fim ? a.data_fim.slice(0, 10) : ''
     });
+    // Seleciona o site relacionado ao serviço da assinatura
+    const servico = servicos.find(s => s.id === a.servico_id);
+    if (servico) setSiteSelecionado(servico.nome);
   };
 
   // Função para salvar edição
@@ -243,6 +234,9 @@ function Principal({ onLogout }) {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
+      // Buscar status atual da assinatura, se possível
+      const assinaturaAtual = assinaturas.find(a => a.id === editandoAssinaturaId);
+      const status = assinaturaAtual ? assinaturaAtual.status : 'Ativa';
       const res = await fetch(`http://localhost:5000/api/assinaturas/${editandoAssinaturaId}`, {
         method: 'PUT',
         headers: {
@@ -252,7 +246,8 @@ function Principal({ onLogout }) {
         body: JSON.stringify({
           servico_id: editAssinatura.servicoId,
           data_inicio: editAssinatura.dataInicio,
-          data_fim: editAssinatura.dataFim
+          data_fim: editAssinatura.dataFim,
+          status
         })
       });
       if (res.ok) {
@@ -263,7 +258,8 @@ function Principal({ onLogout }) {
         const novasAssinaturas = assinaturas.map(a => a.id === editandoAssinaturaId ? { ...a, ...{
           servico_id: editAssinatura.servicoId,
           data_inicio: editAssinatura.dataInicio,
-          data_fim: editAssinatura.dataFim
+          data_fim: editAssinatura.dataFim,
+          status
         }} : a);
         setAssinaturas(novasAssinaturas);
       } else {
@@ -525,8 +521,8 @@ function Principal({ onLogout }) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <select value={editAssinatura.servicoId} onChange={e => setEditAssinatura({ ...editAssinatura, servicoId: e.target.value })} style={{ padding: 8 }}>
                     <option value="">Selecione o plano</option>
-                    {servicos.map(s => (
-                      <option key={s.id} value={s.id}>{s.nome} - {s.descricao} - R$ {s.preco}</option>
+                    {servicos.filter(s => s.nome === siteSelecionado).map(s => (
+                      <option key={s.id} value={s.id}>{s.descricao} - R$ {s.preco}</option>
                     ))}
                   </select>
                   <input type="date" value={editAssinatura.dataInicio} onChange={e => setEditAssinatura({ ...editAssinatura, dataInicio: e.target.value })} style={{ padding: 8 }} />

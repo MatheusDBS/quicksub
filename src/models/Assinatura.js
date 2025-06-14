@@ -1,10 +1,10 @@
 const pool = require('../config/db');
 
 const Assinatura = {
-  create: async ({ cliente_id, servico_id, data_inicio, data_fim, status, user_id }) => {
+  create: async ({ servico_id, data_inicio, data_fim, status, user_id }) => {
     const [result] = await pool.query(
-      'INSERT INTO assinaturas (cliente_id, servico_id, data_inicio, data_fim, status, user_id) VALUES (?, ?, ?, ?, ?, ?)',
-      [cliente_id, servico_id, data_inicio, data_fim, status, user_id]
+      'INSERT INTO assinaturas (servico_id, data_inicio, data_fim, status, user_id) VALUES (?, ?, ?, ?, ?)',
+      [servico_id, data_inicio, data_fim, status, user_id]
     );
     return result.insertId;
   },
@@ -20,17 +20,14 @@ const Assinatura = {
     const [rows] = await pool.query('SELECT * FROM assinaturas WHERE id = ?', [id]);
     return rows[0];
   },
-  update: async (id, cliente_id, servico_id, data_inicio, data_fim, status) => {
+  update: async (id, servico_id, data_inicio, data_fim, status) => {
     await pool.query(
-      'UPDATE assinaturas SET cliente_id = ?, servico_id = ?, data_inicio = ?, data_fim = ?, status = ? WHERE id = ?',
-      [cliente_id, servico_id, data_inicio, data_fim, status, id]
+      'UPDATE assinaturas SET servico_id = ?, data_inicio = ?, data_fim = ?, status = ? WHERE id = ?',
+      [servico_id, data_inicio, data_fim, status, id]
     );
   },
   delete: async (id) => {
     await pool.query('DELETE FROM assinaturas WHERE id = ?', [id]);
-  },
-  deleteByClienteId: async (clienteId) => {
-    await pool.query('DELETE FROM assinaturas WHERE cliente_id = ?', [clienteId]);
   },
   deleteByServicoId: async (servicoId) => {
     await pool.query('DELETE FROM assinaturas WHERE servico_id = ?', [servicoId]);

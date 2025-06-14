@@ -3,12 +3,9 @@ import React, { useState, useEffect } from 'react';
 function AdminServicos() {
   const [servicos, setServicos] = useState([]);
   const [nome, setNome] = useState('');
-  const [descricao, setDescricao] = useState('');
-  const [preco, setPreco] = useState('');
   const [msg, setMsg] = useState('');
   const [loading, setLoading] = useState(false);
   const [editandoId, setEditandoId] = useState(null);
-  const [editNome, setEditNome] = useState('');
   const [editDescricao, setEditDescricao] = useState('');
   const [editPreco, setEditPreco] = useState('');
   const [showPerfil, setShowPerfil] = useState(false);
@@ -39,7 +36,7 @@ function AdminServicos() {
       if (!token) return;
       try {
         const payload = JSON.parse(atob(token.split('.')[1]));
-        setPerfil({ username: payload.username, email: payload.email || payload.email });
+        setPerfil({ username: payload.username, email: payload.email });
         setNovoUsername(payload.username);
       } catch {}
     }
@@ -130,25 +127,26 @@ function AdminServicos() {
     setLoading(false);
   };
 
-  const handleEditar = (servico) => {
-    setEditandoId(servico.id);
-    setEditNome(servico.nome);
-    setEditDescricao(servico.descricao);
-    setEditPreco(servico.preco);
-  };
-
   const handleSalvarEdicao = async (id) => {
     setMsg('');
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
+      // Buscar o serviço atual para obter o nome correto
+      const servicoAtual = servicos.find(s => s.id === id);
+      if (!servicoAtual) {
+        setMsg('Serviço não encontrado.');
+        setLoading(false);
+        return;
+      }
+      // Enviar nome, descricao e preco
       const res = await fetch(`http://localhost:5000/api/servicos/${id}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ nome: editNome, descricao: editDescricao, preco: editPreco })
+        body: JSON.stringify({ nome: servicoAtual.nome, descricao: editDescricao, preco: editPreco })
       });
       if (res.ok) {
         setMsg('Serviço atualizado!');
@@ -288,6 +286,7 @@ function AdminServicos() {
                     <li key={plano.id} style={{ display: 'flex', alignItems: 'center', marginBottom: 6 }}>
                       {editandoId === plano.id ? (
                         <>
+                          {/* Não permitir edição do nome do serviço */}
                           <input type="text" value={editDescricao} onChange={e => setEditDescricao(e.target.value)} style={{ width: 120, marginRight: 8, padding: 4 }} />
                           <input type="number" value={editPreco} onChange={e => setEditPreco(e.target.value)} style={{ width: 70, marginRight: 8, padding: 4 }} />
                           <button style={{ background: '#4caf50', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 10px', marginRight: 4 }} onClick={() => handleSalvarEdicao(plano.id)}>Salvar</button>
