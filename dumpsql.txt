@@ -16,13 +16,11 @@ CREATE TABLE IF NOT EXISTS servicos (
 
 CREATE TABLE IF NOT EXISTS assinaturas (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  cliente_id INT NOT NULL,
   servico_id INT NOT NULL,
   data_inicio DATE,
   data_fim DATE,
   status VARCHAR(20),
   user_id INT NOT NULL,
-  FOREIGN KEY (cliente_id) REFERENCES clientes(id),
   FOREIGN KEY (servico_id) REFERENCES servicos(id),
   FOREIGN KEY (user_id) REFERENCES users(id)
 );
